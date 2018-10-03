@@ -1,0 +1,64 @@
+a. Create classification model using different classifiers
+Ans: sampleVec1 <- c(1, 2, 3, 4, 5, 6)
+  sampleVec2 <- c(1, 2, 3, 4, 5, 6)
+    featureMat <- expFeatureMatrix( expMat1 = ControlExpMat, sampleVec1 = sampleVec1, 
+                                    expMat2 = SaltExpMat, sampleVec2 = sampleVec2, 
+                                    logTransformed = TRUE, base = 2,
+                                    features = c("zscore", "foldchange", "cv", "expression"))
+positiveSamples <- as.character(sampleData$KnownSaltGenes)
+unlabelSamples <- setdiff( rownames(featureMat), positiveSamples )
+   idx <- sample(length(unlabelSamples))
+cl <- classifier( method = "svm", featureMat = featureMat, 
+                      positiveSamples = positiveSamples, 
+                      negativeSamples = negativeSamples,
+                      tunecontrol = tune.control(sampling = "cross", cross = 5),
+                      kernel = "radial", 
+                      probability = TRUE,
+                      ranges = list(gamma = 2^(-2:2), 
+                       cost = 2^(-4:4)) ) #for radial kernel and the parameter space.
+
+b. Verify model goodness of fit.
+Ans: num_of_samples = 1000
+x <- rgamma(num_of_samples, shape = 10, scale = 3)
+x <- x + rnorm(length(x), mean=0, sd = .1)
+p1 <- hist(x,breaks=50, include.lowest=FALSE, right=FALSE)
+
+c. Apply all the model validation techniques.
+Ans: seed <- 1809
+set.seed(seed)
+ 
+gen_data <- function(n, beta, sigma_eps) {
+    eps <- rnorm(n, 0, sigma_eps)
+    x <- sort(runif(n, 0, 100))
+    X <- cbind(1, poly(x, degree = (length(beta) - 1), raw = TRUE))
+    y <- as.numeric(X %*% beta + eps)
+    
+    return(data.frame(x = x, y = y))
+}
+n_rep <- 100
+n_df <- 30
+df <- 1:n_df
+beta <- c(5, -0.1, 0.004, -3e-05)
+n_train <- 50
+n_test <- 10000
+sigma_eps <- 0.5
+ 
+xy <- res <- list()
+xy_test <- gen_data(n_test, beta, sigma_eps)
+for (i in 1:n_rep) {
+    xy[[i]] <- gen_data(n_train, beta, sigma_eps)
+    x <- xy[[i]][, "x"]
+    y <- xy[[i]][, "y"]
+    res[[i]] <- apply(t(df), 2, function(degf) lm(y ~ ns(x, df = degf)))
+}
+x <- xy[[1]]$x
+X <- cbind(1, poly(x, degree = (length(beta) - 1), raw = TRUE))
+y <- xy[[1]]$y
+plot(y ~ x, col = "gray", lwd = 2)
+lines(x, X %*% beta, lwd = 3, col = "black")
+lines(x, fitted(res[[1]][[1]]), lwd = 3, col = "palegreen3")
+lines(x, fitted(res[[1]][[4]]), lwd = 3, col = "darkorange")
+lines(x, fitted(res[[1]][[25]]), lwd = 3, col = "steelblue")
+legend(x = "topleft", legend = c("True function", "Linear fit (df = 1)", "Best model (df = 4)",
+    "Overfitted model (df = 25)"), lwd = rep(3, 4), col = c("black", "palegreen3", 
+    "darkorange", "steelblue"), text.width = 32, cex = 0.85)
